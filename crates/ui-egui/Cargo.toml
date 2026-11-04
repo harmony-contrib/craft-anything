@@ -11,6 +11,11 @@ build = "build.rs"
 [lints]
 workspace = true
 
+[features]
+default = ["upstream-branding"]
+# Embedding hosts can omit the upstream application artwork.
+upstream-branding = []
+
 [dependencies]
 craft-anything-engine = { workspace = true }
 craft-anything-engines = { workspace = true }
@@ -19,19 +24,25 @@ craft-anything-setup = { workspace = true }
 craft-anything-platform = { workspace = true }
 egui = { workspace = true }
 # SVG icons (Lucide) rasterised at the exact on-screen size with resvg (pure Rust).
-egui_extras = { workspace = true, features = ["svg"] }
+egui_extras = { workspace = true, features = ["svg", "image"] }
 # `links`: without it `ctx.open_url` is a silent no-op (the workspace turns eframe's defaults off).
-eframe = { workspace = true, features = ["default_fonts", "wgpu", "accesskit", "links"] }
+eframe = { workspace = true, features = ["default_fonts", "wgpu", "links"] }
+image = { version = "0.25", default-features = false, features = ["png"] }
 serde = { workspace = true }
 serde_json = { workspace = true }
 log = { workspace = true }
 
-[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+[target.'cfg(not(target_env = "ohos"))'.dependencies]
+eframe = { workspace = true, features = ["accesskit"] }
+
+[target.'cfg(all(not(target_arch = "wasm32"), not(target_env = "ohos")))'.dependencies]
 # Native open/save dialogs, always shown from a worker thread (never blocks a frame).
 rfd = { workspace = true }
 # Pictures pasted from the clipboard (see `paste`).
 arboard = { workspace = true }
 pollster = "0.4"
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 # Safe, small OS-language lookup; MIT OR Apache-2.0, no native runtime dependency.
 sys-locale = "0.3.2"
 

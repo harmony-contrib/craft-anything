@@ -70,7 +70,7 @@ fn step(before: Watch, events: &[egui::Event], held: egui::Modifiers) -> Watch {
 /// (maybe a picture). The same answer for every call in a pass; call it on every pass a box that
 /// takes pictures shows, so no key's press or release is missed.
 pub fn picture_wanted(ctx: &egui::Context) -> bool {
-    let id = egui::Id::new("paste-watch");
+    let id = egui::Id::unique("paste-watch");
     let pass = ctx.cumulative_pass_nr();
     let before: Watch = ctx.data(|d| d.get_temp(id)).unwrap_or_default();
     if before.pass == pass && pass != 0 {
@@ -86,7 +86,7 @@ pub fn picture_wanted(ctx: &egui::Context) -> bool {
 /// A copied picture a message can't take (over 20 MB, or not a picture inside whatever its name
 /// says) refuses the paste, rather than showing as attached and being left out when the message
 /// goes, or sent as a file the builder can't read. Blocking: run it on a worker.
-#[cfg(not(target_arch = "wasm32"))]
+#[cfg(all(not(target_arch = "wasm32"), not(target_env = "ohos")))]
 pub fn read_pictures(dir: &Path, keep: &[PathBuf]) -> Result<Vec<PathBuf>, String> {
     let mut clipboard = arboard::Clipboard::new().map_err(|e| format!("{} {e}", crate::i18n::tr("The clipboard can't be read:")))?;
     let files: Vec<PathBuf> = clipboard.get().file_list().unwrap_or_default().into_iter().filter(|p| craft_anything_engine::workspace::is_picture(p)).collect();
@@ -100,8 +100,14 @@ pub fn read_pictures(dir: &Path, keep: &[PathBuf]) -> Result<Vec<PathBuf>, Strin
     craft_anything_engine::workspace::save_pasted_picture(dir, width, height, image.bytes.into_owned(), keep).map(|p| vec![p]).map_err(|e| e.message)
 }
 
+/// The host can attach image files with `CraftApp::attach` on OpenHarmony.
+#[cfg(target_env = "ohos")]
+pub fn read_pictures(_dir: &Path, _keep: &[PathBuf]) -> Result<Vec<PathBuf>, String> {
+    Err(crate::i18n::trf("{name} isn't available yet in this build.", &[("name", &crate::tr("Paste pictures"))]))
+}
+
 /// Copied picture files, if a message can take every one; else which one it can't.
-#[cfg(not(target_arch = "wasm32"))]
+#[cfg(all(not(target_arch = "wasm32"), any(not(target_env = "ohos"), test)))]
 fn attachable(files: Vec<PathBuf>) -> Result<Vec<PathBuf>, String> {
     use craft_anything_engine::workspace::{attachable_picture, picture_content};
     let name = |f: &Path| f.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
@@ -231,6 +237,7 @@ mod tests {
 
     /// Live: puts a picture on this computer's clipboard (replacing what's there) and reads it back.
     #[test]
+    #[cfg(not(target_env = "ohos"))]
     #[ignore = "replaces what's on the system clipboard"]
     fn live_a_picture_on_the_clipboard_is_read_back_as_a_png() {
         let mut c = arboard::Clipboard::new().unwrap();

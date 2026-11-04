@@ -157,7 +157,7 @@ fn bounded<T: Send + 'static>(f: impl FnOnce() -> Option<T> + Send + 'static) ->
     rx.recv_timeout(KEYCHAIN_TIMEOUT).ok().flatten()
 }
 
-#[cfg(any(target_os = "linux", target_os = "macos", windows))]
+#[cfg(all(not(target_env = "ohos"), any(target_os = "linux", target_os = "macos", windows)))]
 mod keychain {
     use super::{SERVICE, bounded};
 
@@ -177,7 +177,7 @@ mod keychain {
     }
 }
 
-#[cfg(not(any(target_os = "linux", target_os = "macos", windows)))]
+#[cfg(any(target_env = "ohos", not(any(target_os = "linux", target_os = "macos", windows))))]
 mod keychain {
     pub fn get(_: &str) -> Option<String> {
         let _ = super::bounded(|| None::<()>);

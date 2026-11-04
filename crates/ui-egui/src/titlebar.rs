@@ -46,7 +46,7 @@ pub fn window_edge(ctx: &egui::Context) {
         return;
     }
     let t = Tokens::get(ctx);
-    ctx.layer_painter(egui::LayerId::new(egui::Order::Foreground, egui::Id::new("window-edge"))).rect_stroke(
+    ctx.layer_painter(egui::LayerId::new(egui::Order::Foreground, egui::Id::unique("window-edge"))).rect_stroke(
         ctx.content_rect(),
         0.0,
         egui::Stroke::new(1.0, t.field_border),
@@ -90,7 +90,7 @@ fn window_button(ui: &mut Ui, icon: &str, tip: &str, close: bool) -> egui::Respo
     let col = if hot && close { egui::Color32::WHITE } else { t.icon };
     icons::paint(ui, egui::Rect::from_center_size(rect.center(), Vec2::splat(14.0)), icon, 14.0, col);
     widgets::focus_ring(ui, &resp, rect.shrink(3.0));
-    resp.widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::Button, true, tr(tip)));
+    resp.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Button, true, tr(tip)));
     resp.on_hover_text(tr(tip))
 }
 
@@ -100,7 +100,7 @@ pub fn show(app: &mut CraftApp, ui: &mut Ui) {
     let bar = ui.max_rect();
     // Empty parts of the bar move the window and double-click maximises. This is registered
     // before the controls, so they get their own clicks.
-    let drag = ui.interact(bar, ui.id().with("titlebar-drag"), egui::Sense::click_and_drag());
+    let drag = ui.interact(bar, ui.scope_id().with("titlebar-drag"), egui::Sense::click_and_drag());
     if edge_at(&ctx).is_none() && drag.drag_started_by(egui::PointerButton::Primary) {
         ctx.send_viewport_cmd(egui::ViewportCommand::StartDrag);
     }
@@ -117,10 +117,10 @@ pub fn show(app: &mut CraftApp, ui: &mut Ui) {
     ui.horizontal_centered(|ui| {
         ui.spacing_mut().item_spacing.x = 10.0;
         ui.add_space(12.0);
-        if ui.add(crate::app_icon(22.0).sense(egui::Sense::click())).on_hover_text(tr("Home")).clicked() {
+        if ui.add(app.brand_icon(22.0).sense(egui::Sense::click())).on_hover_text(tr("Home")).clicked() {
             app.state.screen = Screen::Home;
         }
-        ui.label(theme::label_text("Craft Anything", 12.0).color(t.text).strong());
+        ui.label(theme::label_text(app.display_name(), 12.0).color(t.text).strong());
         let in_project = app.state.screen == Screen::Project;
         let project = if in_project { app.workspace.as_ref().map(|w| w.manifest.name.clone()) } else { app.view.project.clone() };
         let target = if in_project { None } else { app.view.active_target().map(|t| (t.name.clone(), t.kind)) };
@@ -203,7 +203,7 @@ fn usage_pill(app: &CraftApp, ui: &mut Ui) {
     let t = Tokens::get(ui.ctx());
     let text = if u.priced { crate::usage::cost_short(u) } else { crate::usage::tokens_words(u.tokens()) };
     let r = widgets::pill(ui, &text, t.text_dim, t.raised);
-    r.widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::Label, true, &text));
+    r.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Label, true, &text));
     r.on_hover_ui(|ui| {
         ui.label(RichText::new(tr("AI use this session")).font(theme::semibold(theme::SMALL)));
         ui.label(crate::usage::explain(u, "Since Craft Anything opened."));
@@ -230,7 +230,7 @@ fn download_pill(ui: &mut Ui, title: &str, fraction: Option<f32>) -> egui::Respo
     ui.painter().rect_filled(egui::Rect::from_min_size(track.min, Vec2::new(track.width() * f, track.height())), 1.5, t.accent);
     widgets::focus_ring(ui, &resp, rect);
     widgets::animate(ui, std::time::Duration::from_millis(250));
-    resp.widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::Button, true, text.clone()));
+    resp.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Button, true, text.clone()));
     resp.on_hover_cursor(egui::CursorIcon::PointingHand)
 }
 
@@ -256,7 +256,7 @@ fn deep_toggle(app: &mut CraftApp, ui: &mut Ui) {
     let knob_x = egui::lerp(sw.left() + 6.0..=sw.right() - 6.0, how);
     ui.painter().circle_filled(egui::pos2(knob_x, sw.center().y), 4.5, egui::Color32::WHITE);
     widgets::focus_ring(ui, &resp, rect);
-    resp.widget_info(|| egui::WidgetInfo::selected(egui::WidgetType::Checkbox, true, !deep, tr("Clean room")));
+    resp.widget_info(|| egui::WidgetInfo::selected(egui::Role::CheckBox, true, !deep, tr("Clean room")));
     let resp = resp.on_hover_ui(|ui| {
         ui.label(RichText::new(tr("Clean room or Deep")).font(theme::semibold(theme::SMALL)));
         ui.label(tr(

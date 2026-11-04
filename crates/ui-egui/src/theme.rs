@@ -197,7 +197,7 @@ impl Tokens {
 }
 
 fn tokens_id() -> egui::Id {
-    egui::Id::new("craft-anything-theme")
+    egui::Id::unique("craft-anything-theme")
 }
 
 // ---- fonts -------------------------------------------------------------------------------------
@@ -237,6 +237,8 @@ pub fn install_fonts(ctx: &egui::Context) {
             fallbacks.push(name);
         }
     }
+    #[cfg(target_env = "ohos")]
+    install_ohos_fonts(&mut fonts, &mut fallbacks);
     // Sans first: a mincho/serif fallback makes Japanese and Chinese UI text look like prose.
     let fallbacks = sans_first(fallbacks);
     fonts.families.entry(FontFamily::Proportional).or_default().insert(0, "DMSans".to_owned());
@@ -251,6 +253,23 @@ pub fn install_fonts(ctx: &egui::Context) {
         fonts.families.insert(FontFamily::Name(fam.into()), stack);
     }
     ctx.set_fonts(fonts);
+}
+
+// OHOS supplies these faces even when the optional build-time font bundle is absent.
+#[cfg(target_env = "ohos")]
+fn install_ohos_fonts(fonts: &mut FontDefinitions, fallbacks: &mut Vec<String>) {
+    use std::io::Read as _;
+    const MAX_FONT_BYTES: u64 = 40 * 1024 * 1024;
+    let directory = std::path::Path::new("/system/fonts");
+    for file in ["HarmonyOS_Sans_SC.ttf", "HarmonyOS_Sans_TC.ttf", "HarmonyOS_Sans.ttf"] {
+        let Ok(input) = std::fs::File::open(directory.join(file)) else { continue };
+        let mut bytes = Vec::new();
+        if input.take(MAX_FONT_BYTES + 1).read_to_end(&mut bytes).is_err() || bytes.is_empty() || bytes.len() as u64 > MAX_FONT_BYTES {
+            continue;
+        }
+        fonts.font_data.insert(file.into(), Arc::new(FontData::from_owned(bytes)));
+        fallbacks.push(file.into());
+    }
 }
 
 /// Fallback faces, most wanted first. A stable sort keeps the manifest's order inside a rank.

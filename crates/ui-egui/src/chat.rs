@@ -223,7 +223,7 @@ pub fn conversation(app: &mut CraftApp, ui: &mut Ui, dense: bool) {
     let pad = ((width - max_w) / 2.0).max(0.0);
     // The history gets exactly what the composer leaves (its height is measured last frame), so
     // a panel never grows to fit us.
-    let comp_id = ui.id().with(("composer-h", dense));
+    let comp_id = ui.scope_id().with(("composer-h", dense));
     let comp_h = ui.data(|d| d.get_temp::<f32>(comp_id)).unwrap_or(if dense { 48.0 } else { 70.0 });
     // The item spacing after the history counts too. Anything here that comes out taller than the
     // space given makes the agent console's panel grow by that much every frame, until it reaches

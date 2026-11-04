@@ -7,6 +7,9 @@
 //! holding it never freezes a frame; the last snapshot ([`SessionView`]) is shown meanwhile.
 #![deny(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::unimplemented, clippy::todo, clippy::unreachable)]
 
+mod branding;
+pub use branding::Branding;
+
 pub mod builders;
 pub mod chat;
 pub mod demo;
@@ -414,6 +417,8 @@ struct FirstFrames {
 }
 
 pub struct CraftApp {
+    /// Optional identity supplied by an embedding application.
+    pub branding: Option<Branding>,
     pub engine: Arc<Engine>,
     pub hub: Arc<AiHub>,
     pub state: UiState,
@@ -546,6 +551,7 @@ impl CraftApp {
         let settings = engine.session().settings.clone();
         i18n::set_language(&settings.language);
         CraftApp {
+            branding: None,
             engine,
             hub,
             state: UiState::default(),
@@ -1085,9 +1091,14 @@ impl CraftApp {
         if self.headless {
             return;
         }
-        #[cfg(not(target_arch = "wasm32"))]
+        #[cfg(target_env = "ohos")]
+        {
+            let _ = pick;
+            self.toast(i18n::trf("{name} isn't available yet in this build.", &[("name", &tr("Choose a file"))]), true);
+        }
+        #[cfg(all(not(target_arch = "wasm32"), not(target_env = "ohos")))]
         let suggested = game_files::suggested_name(self);
-        #[cfg(not(target_arch = "wasm32"))]
+        #[cfg(all(not(target_arch = "wasm32"), not(target_env = "ohos")))]
         self.jobs.spawn("Choose a file", false, move |_| {
             let d = rfd::AsyncFileDialog::new();
             if matches!(pick, Pick::Pictures | Pick::Attach) {
@@ -1356,13 +1367,18 @@ impl CraftApp {
     // ---- report -----------------------------------------------------------------------------
 
     pub fn export_report(&mut self) {
+        #[cfg(all(not(target_arch = "wasm32"), not(target_env = "ohos")))]
         let md = report::markdown(&self.state.chat, self.view.active_target(), self.view.clean_room);
         if self.headless {
             return;
         }
+        #[cfg(target_env = "ohos")]
+        self.toast(i18n::trf("{name} isn't available yet in this build.", &[("name", &tr("Export report"))]), true);
+        #[cfg(all(not(target_arch = "wasm32"), not(target_env = "ohos")))]
         let name = self.view.active_target().map(|t| format!("{} report.md", t.name)).unwrap_or_else(|| "Craft Anything report.md".into());
+        #[cfg(all(not(target_arch = "wasm32"), not(target_env = "ohos")))]
         let engine = self.engine.clone();
-        #[cfg(not(target_arch = "wasm32"))]
+        #[cfg(all(not(target_arch = "wasm32"), not(target_env = "ohos")))]
         self.jobs.spawn("Export report", true, move |_| {
             let picked = pollster::block_on(
                 rfd::AsyncFileDialog::new().set_title(tr("Save the report")).set_file_name(&name).add_filter("Markdown", &["md"]).save_file(),
@@ -1680,6 +1696,9 @@ impl CraftApp {
 
     /// Per-frame housekeeping: results, events, snapshot, theme. Never blocks.
     pub fn tick(&mut self, ctx: &egui::Context) {
+        if let Some(branding) = self.branding {
+            branding.update_title(ctx);
+        }
         if !self.started {
             self.started = true;
             // Advanced mode opens on the workbench, unless a project was open.
@@ -1821,7 +1840,8 @@ impl CraftApp {
         let t = theme::Tokens::get(ctx);
         let width = (ctx.content_rect().width() - 32.0).clamp(200.0, 640.0);
         let mut dismiss = None;
-        egui::Area::new(egui::Id::new("toasts")).order(egui::Order::Foreground).anchor(egui::Align2::CENTER_BOTTOM, egui::vec2(0.0, -16.0)).show(ctx, |ui| {
+        let toasts_id = egui::Id::unique("toasts");
+        egui::Area::new(toasts_id).order(egui::Order::Foreground).anchor(egui::Align2::CENTER_BOTTOM, egui::vec2(0.0, -16.0)).show(ctx, |ui| {
             ui.set_width(width);
             for (i, (text, error)) in self.state.toasts.iter().enumerate() {
                 egui::Frame::new()
@@ -1860,7 +1880,7 @@ impl CraftApp {
         }
         let t = theme::Tokens::get(ctx);
         let rect = ctx.content_rect();
-        let painter = ctx.layer_painter(egui::LayerId::new(egui::Order::Foreground, egui::Id::new("drop")));
+        let painter = ctx.layer_painter(egui::LayerId::new(egui::Order::Foreground, egui::Id::unique("drop")));
         painter.rect_filled(rect, 0.0, t.shadow);
         let inner = rect.shrink(40.0);
         painter.rect_stroke(inner, t.radius_lg, egui::Stroke::new(2.0, t.accent), egui::StrokeKind::Inside);
@@ -1894,9 +1914,18 @@ impl CraftApp {
 }
 
 /// The 256 px app icon.
+#[cfg(feature = "upstream-branding")]
 pub static APP_ICON_PNG: &[u8] = include_bytes!("../../../assets/app-icon/hicolor/256x256/apps/ai.storyteller.craft-anything.png");
 /// The app icon's master SVG, drawn at the exact pixel size wherever the app shows its icon.
+#[cfg(feature = "upstream-branding")]
 pub static APP_ICON_SVG: &[u8] = include_bytes!("../../../assets/app-icon/craft-anything.svg");
+
+/// No upstream artwork is included when the host disables `upstream-branding`.
+#[cfg(not(feature = "upstream-branding"))]
+pub static APP_ICON_PNG: &[u8] = &[];
+/// An empty icon keeps the layout stable until the host supplies its identity.
+#[cfg(not(feature = "upstream-branding"))]
+pub static APP_ICON_SVG: &[u8] = br#"<svg xmlns="http://www.w3.org/2000/svg" width="1" height="1"></svg>"#;
 
 /// The app icon at `size` points.
 pub fn app_icon(size: f32) -> egui::Image<'static> {
